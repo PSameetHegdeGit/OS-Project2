@@ -22,7 +22,7 @@
 #include <signal.h>
 
 typedef uint mypthread_t;
-typedef enum status{ready, running, waiting, terminated} status;
+typedef enum status{READY, RUNNING, WAITING, TERMINATED} status;
 
 typedef struct threadControlBlock {
 	// thread Id
@@ -34,11 +34,14 @@ typedef struct threadControlBlock {
 	// thread context
 	ucontext_t t_context;
 
-	// thread stack
-	void* t_stack;
+	// thread stack (don't think we need since it's captured by t_context)
+	// void* t_stack;
 
 	// thread priority
 	int t_priority;
+
+	// pointer to return value of function run by thread
+    void *t_return_val;
 
 	// doubly linked list pointers
 	struct threadControlBlock *next;
@@ -65,8 +68,11 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex);
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
-void enqueue(tcb *head, tcb* tail, tcb *toInsert);
-int dequeue(tcb *head, tcb *tail);
+void init_queue(tcb **headPtr, tcb **tailPtr);
+void enqueueThread(tcb *head, tcb* tail, tcb *toInsert);
+int dequeueThread(tcb *head, tcb *tail);
+
+void init_first_thread();
 
 void print_tcb(tcb* t_block);
 void print_tcb_linked_list(tcb* head);

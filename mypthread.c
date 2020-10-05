@@ -9,6 +9,13 @@
 tcb *runQ_head = NULL;
 tcb *runQ_tail = NULL;
 
+// keep track of if first thread has an associated tcb
+int first_thread_init = 0;
+
+// counter for unique thread id
+mypthread_t idCounter = 1;
+
+
 /********************************************************************************************************
                                   					PThreads
 *********************************************************************************************************/
@@ -17,19 +24,43 @@ tcb *runQ_tail = NULL;
  * create a new thread - Shubham
  */
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
-       // create Thread Control Block
-	   tcb *curr_tcb = malloc(sizeof(tcb));
+	// initialize first thread and queues if not initialized
+	if (!first_thread_init) {
+		init_queue(&runQ_head, &runQ_tail);
+		init_first_thread();
+	}
 
-	   // creates and initialize thread context by using getcontext() to initialize ucontext_t struct
-	   getcontext( &(curr_tcb -> t_context) );
+	// create Thread Control Block
+	tcb *new_tcb = malloc(sizeof(tcb));
 
-       // allocate space of stack for this thread to run
-	   void *stack = malloc(SIGSTKSZ);
+	// initialize ucontext_t struct with current thread context
+	if (getcontext( &(new_tcb -> t_context)) == -1) {
+		// if getcontext fails
+		free(new_tcb);
+		return -1;
+	}
 
-       // after everything is all set, push this thread control block onto the run queue
-	   enqueue(runQ_head, runQ_tail, curr_tcb);
+	// set tcb data
+	new_tcb -> t_id = idCounter++;
+	new_tcb -> t_status = READY;
 
-    return 0;
+	// allocate space of stack for this thread to run
+	void *stack = malloc(SIGSTKSZ);
+
+	// set context data for tcb
+	// uc_link: context to be executed when the function func returns or it should be a null pointer.
+	new_tcb -> t_context.uc_link = NULL;
+	new_tcb -> t_context.uc_stack.ss_sp = stack;
+    new_tcb -> t_context.uc_stack.ss_size = SIGSTKSZ;
+    new_tcb -> t_context.uc_stack.ss_flags = 0;
+
+	// modify ucontext_t struct and start executing function with given arg
+	makecontext( &(new_tcb -> t_context), (void(*)(void))function, 1, arg);
+	*thread = new_tcb -> t_id;
+
+	// after everything is all set, push this thread control block onto the run queue
+	enqueueThread(runQ_head, runQ_tail, new_tcb);
+	return 0;
 };
 
 /*
@@ -146,20 +177,26 @@ static void sched_mlfq() {
 }
 
 /********************************************************************************************************
-                                  				GENERAL HELPERS
+                                  			LINKED LIST HELPERS
 *********************************************************************************************************/
+
+/*
+ * Initialize H and T to point to each other if null head
+ */
+void init_queue(tcb **headPtr, tcb **tailPtr) {
+	if (*headPtr == NULL) {
+		*headPtr = malloc(sizeof(tcb));
+		*tailPtr = malloc(sizeof(tcb));
+
+		(*headPtr) -> next = *tailPtr;
+		(*tailPtr) -> prev = *headPtr;
+	}
+}
 
 /*
  * Insert a thread control block to the end of given queue
  */
-void enqueue(tcb *head, tcb* tail, tcb *toInsert) {
-	// initialize H and T to point to each other if null head
-	if (head == NULL) {
-		head -> next = tail;
-		tail -> prev = head;
-	}
-
-	// insert node at end of queue
+void enqueueThread(tcb *head, tcb* tail, tcb *toInsert) {
 	tcb *currLast = tail -> prev;
 	currLast -> next = toInsert;
 
@@ -173,15 +210,42 @@ void enqueue(tcb *head, tcb* tail, tcb *toInsert) {
  *
  * Return 1 on successful deletion, 0 otherwise (including empty list)
  */
-int dequeue(tcb *head, tcb *tail) {
+int dequeueThread(tcb *head, tcb *tail) {
 	// make sure list is not initially empty
 	if (head -> next == tail) {
 		return 0;
 	}
 
-	head -> next = (head -> next) -> next;
+	tcb *remove_tcb = head -> next;
+	head -> next = remove_tcb -> next;
+
+	// free allocated memory (including stack)
+	free(remove_tcb -> t_context.uc_stack.ss_sp);
+	free(remove_tcb);
+
 	return 1;
 }
+
+/********************************************************************************************************
+                                  		THREAD CONTROL BLOCK HELPERS
+*********************************************************************************************************/
+
+/*
+ * Create the first thread block. This is the thread that creates all other threads
+ */
+void init_first_thread() {
+	tcb *new_tcb = malloc(sizeof(tcb));
+
+	new_tcb -> t_status = RUNNING;
+	printf("Making first thread status %d\n", RUNNING);
+	new_tcb -> t_id = 0;
+	// priority = -1 is the highest priority
+	new_tcb -> t_priority = -1;
+
+	enqueueThread(runQ_head, runQ_tail, new_tcb);
+	first_thread_init = 1;
+}
+
 
 /********************************************************************************************************
                                   				SIDE HELPERS
@@ -194,15 +258,23 @@ void print_tcb(tcb* t_block) {
 	char* status[] = {"ready", "running", "waiting", "terminated"};
 
 	puts("\n--------------Thread control block-----------------");
-	printf(
-		"ID: %d\n"
-		"Status: %d\n"
-		"Priority %s\n",
-		t_block -> t_id,
-		t_block -> t_status,
-		status[t_block -> t_priority]
-	);
-	puts("---------------------------------------------------\n");
+
+	if (t_block -> prev == NULL) {
+		puts("\n                 ** Head **                      \n");
+	} else if (t_block -> next == NULL) {
+		puts("\n                 ** Tail **                      \n");
+	} else {
+		printf(
+			"ID: %d\n"
+			"Status: %s\n"
+			"Priority %d\n",
+			t_block -> t_id,
+			status[t_block -> t_priority],
+			t_block -> t_priority
+		);
+	}
+
+	puts("---------------------------------------------------");
 }
 
 /*
