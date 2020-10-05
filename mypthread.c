@@ -6,7 +6,8 @@
 
 #include "mypthread.h"
 
-// INITAILIZE ALL YOUR VARIABLES HERE
+tcb *runQ_head = NULL;
+tcb *runQ_tail = NULL;
 
 /********************************************************************************************************
                                   					PThreads
@@ -141,16 +142,67 @@ static void sched_mlfq() {
 *********************************************************************************************************/
 
 /*
- * Insert a thread control block to end of given queue
+ * Insert a thread control block to the end of given queue
  */
-tcb* enqueue(tcb *head, tcb *toInsert) {
-	return NULL;
+void enqueue(tcb *head, tcb* tail, tcb *toInsert) {
+	// initialize H and T to point to each other if null head
+	if (head == NULL) {
+		head -> next = tail;
+		tail -> prev = head;
+	}
+
+	// insert node at end of queue
+	tcb *currLast = tail -> prev;
+	currLast -> next = toInsert;
+
+	toInsert -> prev = currLast;
+	toInsert -> next = tail;
+	tail -> prev = toInsert;
 }
 
 /*
- * Remove a thread control block from start of given queue
+ * Remove a thread control block from start of given queue.
+ *
+ * Return 1 on successful deletion, 0 otherwise (including empty list)
  */
-tcb* dequeue(tcb *head) {
-	return NULL;
+int dequeue(tcb *head, tcb *tail) {
+	// make sure list is not initially empty
+	if (head -> next == tail) {
+		return 0;
+	}
+
+	head -> next = (head -> next) -> next;
+	return 1;
 }
 
+/********************************************************************************************************
+                                  				SIDE HELPERS
+*********************************************************************************************************/
+
+/*
+ * Print details of given thread block
+ */
+void print_tcb(tcb* t_block) {
+	char* status[] = {"ready", "running", "waiting", "terminated"};
+
+	puts("\n--------------Thread control block-----------------");
+	printf(
+		"ID: %d\n"
+		"Status: %d\n"
+		"Priority %s\n",
+		t_block -> t_id,
+		t_block -> t_status,
+		status[t_block -> t_priority]
+	);
+	puts("---------------------------------------------------\n");
+}
+
+/*
+ * Print details of given linked list of thread control blocks
+ */
+void print_tcb_linked_list(tcb* head) {
+	while(head) {
+		print_tcb(head);
+		head = head -> next;
+	}
+}

@@ -80,8 +80,9 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
-tcb* enqueue(tcb *head, tcb *toInsert);
-tcb* dequeue(tcb *head);
+void enqueue(tcb *head, tcb* tail, tcb *toInsert);
+int dequeue(tcb *head, tcb *tail);
+
 
 #ifdef USE_MYTHREAD
 #define pthread_t mypthread_t
