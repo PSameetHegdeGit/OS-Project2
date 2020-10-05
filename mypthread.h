@@ -1,8 +1,8 @@
 // File:	mypthread_t.h
 
-// List all group member's name:
-// username of iLab:
-// iLab Server:
+// List all group member's name: Shubham Rustagi, Sameet Hedge
+// username of iLab: sr1034,
+// iLab Server: man
 
 #ifndef MYTHREAD_T_H
 #define MYTHREAD_T_H
@@ -18,35 +18,41 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ucontext.h>
 
 typedef uint mypthread_t;
+typedef enum status{ready, running, waiting, terminated} status;
 
 typedef struct threadControlBlock {
-	/* add important states in a thread control block */
 	// thread Id
-	// thread status
-	// thread context
-	// thread stack
-	// thread priority
-	// And more ...
+	mypthread_t t_id;
 
-	// YOUR CODE HERE
+	// thread status
+	status t_status;
+
+	// thread context
+	ucontext_t t_context;
+
+	// thread stack
+	void* t_stack;
+
+	// thread priority
+	int t_priority;
+
+	// doubly linked list pointers
+	struct threadControlBlock *next;
+	struct threadControlBlock *prev;
 } tcb;
 
 /* mutex struct definition */
 typedef struct mypthread_mutex_t {
 	/* add something here */
-
-	// YOUR CODE HERE
 } mypthread_mutex_t;
+
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
-// YOUR CODE HERE
-
-
-/* Function Declarations: */
 
 /* create a new thread */
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void
@@ -73,6 +79,9 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 
 /* destroy the mutex */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
+
+tcb* enqueue(tcb *head, tcb *toInsert);
+tcb* dequeue(tcb *head);
 
 #ifdef USE_MYTHREAD
 #define pthread_t mypthread_t
