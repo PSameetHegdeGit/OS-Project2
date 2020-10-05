@@ -16,11 +16,19 @@ tcb *runQ_tail = NULL;
 /*
  * create a new thread - Shubham
  */
-int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
+int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
        // create Thread Control Block
-       // create and initialize the context of this thread
+	   tcb *curr_tcb = malloc(sizeof(tcb));
+
+	   // creates and initialize thread context by using getcontext() to initialize ucontext_t struct
+	   getcontext( &(curr_tcb -> t_context) );
+
        // allocate space of stack for this thread to run
-       // after everything is all set, push this thread int
+	   void *stack = malloc(SIGSTKSZ);
+
+       // after everything is all set, push this thread control block onto the run queue
+	   enqueue(runQ_head, runQ_tail, curr_tcb);
+
     return 0;
 };
 
