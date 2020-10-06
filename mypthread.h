@@ -43,6 +43,10 @@ typedef struct threadControlBlock {
 	// pointer to return value of function run by thread
     void *t_return_val;
 
+	// maintain an "elapsed" counter - indicates how my time quantum have
+	// passed since thread was schedulder to run
+	int quantum_elapsed;
+
 	// doubly linked list pointers
 	struct threadControlBlock *next;
 	struct threadControlBlock *prev;
@@ -73,6 +77,7 @@ void enqueueThread(tcb *head, tcb* tail, tcb *toInsert);
 tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory);
 
 void init_first_thread();
+void free_tcb(tcb *t_block);
 
 void print_tcb(tcb* t_block);
 void print_tcb_linked_list(tcb* head);

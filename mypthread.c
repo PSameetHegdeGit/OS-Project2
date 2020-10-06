@@ -7,15 +7,22 @@
 #include "mypthread.h"
 
 /*
- * Double linked list to keep track of all thread control blocks
- * Structure: Head <-> P0 <-> P1 <-> P2 <-> Tail
- * P0 (head -> next) will always be the running process
+ * Doubly linked lists for keeping track of:
+ * 1. Running/ready threads
+ * 2. Terminated threads
+ *
+ * General structure: Head <-> P0 <-> P1 <-> P2 <-> Tail
+ * P0 (head -> next) will always be the running process for the runQ
  */
+
 tcb *runQ_head = NULL;
 tcb *runQ_tail = NULL;
 
-// keep track of if first thread has an associated tcb
-int first_thread_init = 0;
+tcb *termQ_head = NULL;
+tcb *termQ_tail = NULL;
+
+// keep track of whether library (queues, timer, etc..) has been initialized
+int init_lib = 0;
 
 // counter for unique thread id
 mypthread_t idCounter = 1;
@@ -29,11 +36,15 @@ mypthread_t idCounter = 1;
  * create a new thread - Shubham
  */
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
-	// initialize first thread and queues if not initialized
-	if (!first_thread_init) {
-		init_queue(&runQ_head, &runQ_tail);
+	// initialize queues and first thread if not initialized
+	if (!init_lib) {
+		init_queues(&runQ_head, &runQ_tail);
+		init_queues(&termQ_head, &termQ_tail);
+
 		init_first_thread();
 		// TODO: initalize timer
+
+		init_lib = 1;
 	}
 
 	// create Thread Control Block
@@ -73,19 +84,52 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 
 /*
  * give CPU possession to other user-level threads voluntarily
+ *
+ * TODO: edge case:
+ * 1. what happens when there's just one thread?
+ * Does it just keep executing after yielding?
+ * 2. what happens when there are no threads?
+ * We call mypthread_yield without creating?
+ *
+ * 3. Timer
+ *
  */
 int mypthread_yield() {
+	tcb *curr_running = runQ_head -> next;
+
 	// change thread state from Running to Ready
+	curr_running -> t_status = READY;
+
 	// save context of this thread to its thread control block
-	// wwitch from thread context to scheduler context
+	getcontext( &(curr_running -> t_context);
+
+	// switch from thread context to scheduler context - done in schedule()
+	// TODO: set timer off?
+	schedule();
+
 	return 0;
 };
 
 /*
  * terminate a thread
+ * TODO: Need to go back to scheduler?
+ * TODO: What happens when you exit but it hasn't had join called on it?
  */
 void mypthread_exit(void *value_ptr) {
+	tcb *running = runQ_head -> next;
+
 	// Deallocated any dynamic memory created when starting this thread
+	free(running -> t_context.uc_stack.ss_sp);
+
+	// change thread state from Running to Terminated
+	running -> t_status = TERMINATED;
+
+	// assign return value pointer
+    running -> t_return_val = value_ptr;
+
+	// TODO: set timer off?
+	schedule();
+
 };
 
 
@@ -95,6 +139,7 @@ void mypthread_exit(void *value_ptr) {
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 	// wait for a specific thread to terminate
 	// de-allocate any dynamic memory created by the joining thread
+
 	return 0;
 };
 
@@ -145,6 +190,7 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 
 /*
  * scheduler
+ * We come here when timer interrupt happens or thread yields (need to decide what to run next)
  */
 static void schedule() {
 	// Every time when timer interrupt happens, your thread library
@@ -154,17 +200,20 @@ static void schedule() {
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
 
-	// if (sched == STCF)
-	//		sched_stcf();
-	// else if (sched == MLFQ)
-	// 		sched_mlfq();
+	// after threads have called functions like exit, yield, we need to clean up our queues
+	prepareQueues();
 
-// schedule policy
-#ifndef MLFQ
-	// Choose STCF
-#else
-	// Choose MLFQ
-#endif
+	// change first element of the run queue since that is what will be run
+
+
+	// schedule policy
+	#ifndef MLFQ
+		// Choose STCF
+		sched_stcf();
+	#else
+		// Choose MLFQ
+		sched_mlfq();
+	#endif
 
 }
 
@@ -178,6 +227,7 @@ static void sched_stcf() {
 
 /*
  * Preemptive MLFQ scheduling algorithm
+ * TODO: confirm this is only for 518
  */
 static void sched_mlfq() {
 	// Your own implementation of MLFQ
@@ -230,12 +280,28 @@ tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
 
 	// free allocated memory (including stack)
 	if (freeMemory) {
-		free(remove_tcb -> t_context.uc_stack.ss_sp);
-		free(remove_tcb);
+		free_tcb(remove_tcb)
 		return NULL;
 	}
 
 	return remove_tcb;
+}
+
+void prepareQueues() {
+	tcb *currRunning = runQ_head -> next;
+
+	// if we just yielded
+	if (currRunning -> t_status == READY) {
+		// put current thread block at the end of the runqueue
+		dequeueThread(runQ_head, runQ_tail, 0);
+		enqueueThread(runQ_head, runQ_tail, curr_running);
+	}
+	// if we just exited
+	else if (currRunning -> t_status == TERMINATED) {
+		// put current thread at the end of the terminated queue
+		dequeueThread(runQ_head, runQ_tail, 0);
+		enqueueThread(termQ_head, termQ_tail, running);
+	}
 }
 
 /********************************************************************************************************
@@ -254,7 +320,14 @@ void init_first_thread() {
 	new_tcb -> t_priority = -1;
 
 	enqueueThread(runQ_head, runQ_tail, new_tcb);
-	first_thread_init = 1;
+}
+
+/*
+ * Free all allocated memory of a thread control block
+ */
+void free_tcb(tcb *t_block) {
+	free(t_block -> t_context.uc_stack.ss_sp);
+	free(t_block);
 }
 
 
