@@ -70,7 +70,7 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
 void init_queue(tcb **headPtr, tcb **tailPtr);
 void enqueueThread(tcb *head, tcb* tail, tcb *toInsert);
-int dequeueThread(tcb *head, tcb *tail);
+tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory);
 
 void init_first_thread();
 

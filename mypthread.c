@@ -6,6 +6,11 @@
 
 #include "mypthread.h"
 
+/*
+ * Double linked list to keep track of all thread control blocks
+ * Structure: Head <-> P0 <-> P1 <-> P2 <-> Tail
+ * P0 (head -> next) will always be the running process
+ */
 tcb *runQ_head = NULL;
 tcb *runQ_tail = NULL;
 
@@ -28,10 +33,11 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 	if (!first_thread_init) {
 		init_queue(&runQ_head, &runQ_tail);
 		init_first_thread();
+		// TODO: initalize timer
 	}
 
 	// create Thread Control Block
-	tcb *new_tcb = malloc(sizeof(tcb));
+	tcb *new_tcb = calloc(1, sizeof(tcb));
 
 	// initialize ucontext_t struct with current thread context
 	if (getcontext( &(new_tcb -> t_context)) == -1) {
@@ -60,6 +66,8 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 
 	// after everything is all set, push this thread control block onto the run queue
 	enqueueThread(runQ_head, runQ_tail, new_tcb);
+
+	// TODO: switch context to created thread
 	return 0;
 };
 
@@ -185,8 +193,8 @@ static void sched_mlfq() {
  */
 void init_queue(tcb **headPtr, tcb **tailPtr) {
 	if (*headPtr == NULL) {
-		*headPtr = malloc(sizeof(tcb));
-		*tailPtr = malloc(sizeof(tcb));
+		*headPtr = calloc(1, sizeof(tcb));
+		*tailPtr = calloc(1, sizeof(tcb));
 
 		(*headPtr) -> next = *tailPtr;
 		(*tailPtr) -> prev = *headPtr;
@@ -208,22 +216,26 @@ void enqueueThread(tcb *head, tcb* tail, tcb *toInsert) {
 /*
  * Remove a thread control block from start of given queue.
  *
- * Return 1 on successful deletion, 0 otherwise (including empty list)
+ * Return NULL if empty list or if freeing memory used by tcb,
+ * else returns a ptr to tcb
  */
-int dequeueThread(tcb *head, tcb *tail) {
+tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
 	// make sure list is not initially empty
-	if (head -> next == tail) {
-		return 0;
+	if (head -> next == NULL || head -> next == tail) {
+		return NULL;
 	}
 
 	tcb *remove_tcb = head -> next;
 	head -> next = remove_tcb -> next;
 
 	// free allocated memory (including stack)
-	free(remove_tcb -> t_context.uc_stack.ss_sp);
-	free(remove_tcb);
+	if (freeMemory) {
+		free(remove_tcb -> t_context.uc_stack.ss_sp);
+		free(remove_tcb);
+		return NULL;
+	}
 
-	return 1;
+	return remove_tcb;
 }
 
 /********************************************************************************************************
@@ -234,10 +246,9 @@ int dequeueThread(tcb *head, tcb *tail) {
  * Create the first thread block. This is the thread that creates all other threads
  */
 void init_first_thread() {
-	tcb *new_tcb = malloc(sizeof(tcb));
+	tcb *new_tcb = calloc(1, sizeof(tcb));
 
 	new_tcb -> t_status = RUNNING;
-	printf("Making first thread status %d\n", RUNNING);
 	new_tcb -> t_id = 0;
 	// priority = -1 is the highest priority
 	new_tcb -> t_priority = -1;
@@ -269,7 +280,7 @@ void print_tcb(tcb* t_block) {
 			"Status: %s\n"
 			"Priority %d\n",
 			t_block -> t_id,
-			status[t_block -> t_priority],
+			status[t_block -> t_status],
 			t_block -> t_priority
 		);
 	}
