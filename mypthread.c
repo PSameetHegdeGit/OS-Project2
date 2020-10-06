@@ -38,8 +38,8 @@ mypthread_t idCounter = 1;
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
 	// initialize queues and first thread if not initialized
 	if (!init_lib) {
-		init_queues(&runQ_head, &runQ_tail);
-		init_queues(&termQ_head, &termQ_tail);
+		init_queue(&runQ_head, &runQ_tail);
+		init_queue(&termQ_head, &termQ_tail);
 
 		init_first_thread();
 		// TODO: initalize timer
@@ -101,14 +101,14 @@ int mypthread_yield() {
 	curr_running -> t_status = READY;
 
 	// save context of this thread to its thread control block
-	getcontext( &(curr_running -> t_context);
+	getcontext( &(curr_running -> t_context));
 
 	// switch from thread context to scheduler context - done in schedule()
 	// TODO: set timer off?
 	schedule();
 
 	return 0;
-};
+}
 
 /*
  * terminate a thread
@@ -130,7 +130,7 @@ void mypthread_exit(void *value_ptr) {
 	// TODO: set timer off?
 	schedule();
 
-};
+}
 
 
 /*
@@ -252,6 +252,19 @@ void init_queue(tcb **headPtr, tcb **tailPtr) {
 }
 
 /*
+ * Insert a thread control block to the start of given queue
+ * This is essentially making *toInsert the running process
+ */
+void enqueueThreadFirst(tcb *head, tcb* tail, tcb *toInsert) {
+	tcb *currFirst = head -> next;
+	head -> next = toInsert;
+
+	toInsert -> next = currFirst;
+	toInsert -> prev = head;
+	currFirst -> prev = toInsert;
+}
+
+/*
  * Insert a thread control block to the end of given queue
  */
 void enqueueThread(tcb *head, tcb* tail, tcb *toInsert) {
@@ -280,13 +293,17 @@ tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
 
 	// free allocated memory (including stack)
 	if (freeMemory) {
-		free_tcb(remove_tcb)
+		free_tcb(remove_tcb);
 		return NULL;
 	}
 
 	return remove_tcb;
 }
 
+/*
+ * Called by scheduler to clean up our queues after functions like yield and exit.
+ * Dequeue the current process and enqueue it into the appropriate queue
+ */
 void prepareQueues() {
 	tcb *currRunning = runQ_head -> next;
 
@@ -294,13 +311,13 @@ void prepareQueues() {
 	if (currRunning -> t_status == READY) {
 		// put current thread block at the end of the runqueue
 		dequeueThread(runQ_head, runQ_tail, 0);
-		enqueueThread(runQ_head, runQ_tail, curr_running);
+		enqueueThread(runQ_head, runQ_tail, currRunning);
 	}
 	// if we just exited
 	else if (currRunning -> t_status == TERMINATED) {
 		// put current thread at the end of the terminated queue
 		dequeueThread(runQ_head, runQ_tail, 0);
-		enqueueThread(termQ_head, termQ_tail, running);
+		enqueueThread(termQ_head, termQ_tail, currRunning);
 	}
 }
 

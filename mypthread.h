@@ -61,7 +61,6 @@ typedef struct mypthread_mutex_t {
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
-
 int mypthread_create(mypthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg);
 int mypthread_yield();
 void mypthread_exit(void *value_ptr);
@@ -72,9 +71,16 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex);
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
+static void schedule();
+static void sched_stcf();
+static void sched_mlfq();
+
+/* helper functions */
 void init_queue(tcb **headPtr, tcb **tailPtr);
+void enqueueThreadFirst(tcb *head, tcb* tail, tcb *toInsert);
 void enqueueThread(tcb *head, tcb* tail, tcb *toInsert);
 tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory);
+void prepareQueues();
 
 void init_first_thread();
 void free_tcb(tcb *t_block);
