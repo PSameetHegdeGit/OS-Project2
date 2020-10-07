@@ -68,3 +68,14 @@ make join
 3. So when the first time you call pthread_create, you actually generate 2 threads, 1 is the original and another is what you just created. If the original's (parent) code finishes first and it doesn't join, the process terminates. We don't really handle that I believe so not really sure how to check the "if parent code is done" condition to terminate the process
 
 4. Kind of going of 3, how does our code handle the 1 process left part? Might not have caught all the edge cases. Not really sure how to best test and see results
+
+5. Exit from process if there are no threads in run queue?
+    - how do you know when a thread is done? We want to switch to scheduler function, but all we really have control over is uc_link and that requires us to make schedule into a context, not a function.
+
+
+## Errors
+
+1. For whatever reason, sometimes when you run the create_thread.c program under benchmarks/tests, you get an error like "profiling timer expired". Only happens sometimes so could be a race condition, but not really since only one thread runs at any given moment, so not really sure
+    - The signal handler is somehow getting reset (https://stackoverflow.com/questions/39501942/signal-handling-behavior-is-reset-to-default-with-sigaction) to its default behavior. Might be because getconext() is unsafe? idk
+
+
