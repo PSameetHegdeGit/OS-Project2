@@ -36,13 +36,15 @@ mypthread_t idCounter = 1;
  * create a new thread - Shubham
  */
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
+	stopTimer();
+
 	// initialize queues, add current first thread, and start timer if not initialized
 	if (!init_lib) {
 		init_queue(&runQ_head, &runQ_tail);
 		init_queue(&termQ_head, &termQ_tail);
 
 		init_first_thread();
-		init_timer();
+		register_sigprof_handler();
 
 		init_lib = 1;
 	}
@@ -78,7 +80,7 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 	// after everything is all set, push this thread control block onto the run queue
 	enqueue_tcb(runQ_head, runQ_tail, new_tcb);
 
-	// TODO: switch context to created thread
+	startTimer();
 	return 0;
 };
 
@@ -193,11 +195,6 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
  * TODO: confirm whether we acutally need a context switch
  */
 static void schedule() {
-	// Every time when timer interrupt happens, your thread library
-	// should be contexted switched from thread context to this
-	// schedule function
-
-	// TODO: stop timer
 	stopTimer();
 
 	tcb *initialFirst = runQ_head -> next;
@@ -224,11 +221,10 @@ static void schedule() {
 		#endif
 	}
 
-	// TODO: start timer
 	startTimer();
 
 	// save the current context and set the context to the new running process context
-	printf("swapping context to %d\n", curr_first -> t_id);
+	// printf("swapping context to %d\n", curr_first -> t_id);
 	swapcontext( &(initialFirst -> t_context), &(curr_first -> t_context));
 }
 
@@ -427,22 +423,19 @@ void save_running_context_to_tcb() {
  * Source:
  * https://www.cs.princeton.edu/courses/archive/spring04/cos217/precepthandouts/19/testitimersigaction.c
  */
-void init_timer() {
+void register_sigprof_handler() {
 	struct sigaction sigAction;
 
 	// register a signal handler to handle SIGPROF signals
 	sigAction.sa_handler = handleSigProf;
 	sigemptyset(&sigAction.sa_mask);
 	sigaction(SIGPROF, &sigAction, NULL);
-
-	startTimer();
 }
 
 /*
  * Respond to the SIGPROF timer interrupt by changing thread state and going to the scheduler code
  */
 void handleSigProf(int num) {
-	write(STDOUT_FILENO, "handler for timer\n", 19);
 	// change thread state from Running to Ready
 	tcb *curr_running = runQ_head -> next;
 	curr_running -> t_status = READY;
@@ -456,7 +449,6 @@ void handleSigProf(int num) {
  * Timer decrements from it_value to 0, issues a SIGPROF signal, and resets to it_interval
  */
 void startTimer() {
-	write(STDOUT_FILENO, "starting timer\n", 16);
 	struct itimerval timerValue;
 
 	timerValue.it_value.tv_sec = 0;
@@ -470,7 +462,6 @@ void startTimer() {
  * If both fields in new_value.it_value are zero, then the timer is disarmed.
  */
 void stopTimer() {
-	write(STDOUT_FILENO, "stopping timer\n", 16);
 	struct itimerval timerValue;
 
 	timerValue.it_value.tv_sec = 0;
@@ -479,7 +470,6 @@ void stopTimer() {
 	timerValue.it_interval.tv_usec = 0;
 	setitimer(ITIMER_PROF, &timerValue, NULL);
 }
-
 
 /********************************************************************************************************
                                   				SIDE HELPERS

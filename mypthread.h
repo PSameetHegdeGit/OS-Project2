@@ -92,7 +92,7 @@ void init_first_thread();
 void free_tcb(tcb *t_block);
 void save_running_context_to_tcb();
 
-void init_timer();
+void register_sigprof_handler();
 void handleSigProf(int num);
 void startTimer();
 void stopTimer();
