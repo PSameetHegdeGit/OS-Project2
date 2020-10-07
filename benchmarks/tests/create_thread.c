@@ -18,27 +18,24 @@ extern tcb *runQ_tail;
 
 void* thread0(void *arg) {
 	int i;
-	for (i = 0; i < 10; i++) {
-		sleep(1);
-		printf("thread 0: %d\n", i);
+	while (1) {
+		i++;
 	}
 	return NULL;
 }
 
 void* thread1(void *arg) {
 	int i;
-	for (i = 0; i < 10; i++) {
-		sleep(1);
-		printf("thread 1: %d\n", i);
+	while(1) {
+		i++;
 	}
 	return NULL;
 }
 
 void thread2() {
 	int i;
-	for (i = 0; i < 10; i++) {
-		//sleep(1);
-		printf("thread 2: %d\n", i);
+	while(1) {
+		i++;
 	}
 }
 

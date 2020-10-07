@@ -36,13 +36,13 @@ mypthread_t idCounter = 1;
  * create a new thread - Shubham
  */
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
-	// initialize queues and first thread if not initialized
+	// initialize queues, add current first thread, and start timer if not initialized
 	if (!init_lib) {
 		init_queue(&runQ_head, &runQ_tail);
 		init_queue(&termQ_head, &termQ_tail);
 
 		init_first_thread();
-		// TODO: initalize timer
+		init_timer(1);
 
 		init_lib = 1;
 	}
@@ -101,12 +101,10 @@ int mypthread_yield() {
 	curr_running -> t_status = READY;
 
 	// save context of this thread to its thread control block
-	getcontext( &(curr_running -> t_context));
+	save_running_context_to_tcb();
 
 	// switch from thread context to scheduler context - done in schedule()
-	// TODO: set timer off?
 	schedule();
-
 	return 0;
 }
 
@@ -116,20 +114,20 @@ int mypthread_yield() {
  * TODO: What happens when you exit but it hasn't had join called on it?
  */
 void mypthread_exit(void *value_ptr) {
-	tcb *running = runQ_head -> next;
+	tcb *curr_running = runQ_head -> next;
 
 	// Deallocated any dynamic memory created when starting this thread
-	free(running -> t_context.uc_stack.ss_sp);
+	free(curr_running -> t_context.uc_stack.ss_sp);
 
 	// change thread state from Running to Terminated
-	running -> t_status = TERMINATED;
+	curr_running -> t_status = TERMINATED;
 
 	// assign return value pointer
-    running -> t_return_val = value_ptr;
+    curr_running -> t_return_val = value_ptr;
 
-	// TODO: set timer off?
+	// save context of this thread to its thread control block
+	save_running_context_to_tcb();
 	schedule();
-
 }
 
 
@@ -190,15 +188,19 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 
 /*
  * scheduler
- * We come here when timer interrupt happens or thread yields (need to decide what to run next)
+ * "context switch" to here when timer interrupt happens or thread yields (need to decide what to run next)
+ *
+ * TODO: confirm whether we acutally need a context switch
  */
 static void schedule() {
 	// Every time when timer interrupt happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
 
-	// Invoke different actual scheduling algorithms
-	// according to policy (STCF or MLFQ)
+	// TODO: stop timer
+	stopTimer();
+
+	tcb *initialFirst = runQ_head -> next;
 
 	// after threads have called functions like exit, yield, we need to clean up our queues
 	prepareQueues();
@@ -206,15 +208,25 @@ static void schedule() {
 	// change first element of the run queue since that is what will be run
 
 
-	// schedule policy
-	#ifndef MLFQ
-		// Choose STCF
-		sched_stcf();
-	#else
-		// Choose MLFQ
-		sched_mlfq();
-	#endif
+	// for now, just make whatever the next process is to running
+	tcb *curr_first = runQ_head -> next;
+	curr_first -> t_status = RUNNING;
 
+	// TODO: start timer
+	startTimer();
+
+	// save the current context and set the context to the new running process context
+	printf("swapping context to %d\n", curr_first -> t_id);
+	swapcontext( &(initialFirst -> t_context), &(curr_first -> t_context));
+
+	// // schedule policy
+	// #ifndef MLFQ
+	// 	// Choose STCF
+	// 	sched_stcf();
+	// #else
+	// 	// Choose MLFQ
+	// 	sched_mlfq();
+	// #endif
 }
 
 /*
@@ -223,10 +235,12 @@ static void schedule() {
 static void sched_stcf() {
 	// Your own implementation of STCF
 	// (feel free to modify arguments and return types)
+
 }
 
 /*
  * Preemptive MLFQ scheduling algorithm
+ *
  * TODO: confirm this is only for 518
  */
 static void sched_mlfq() {
@@ -307,7 +321,7 @@ tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
 void prepareQueues() {
 	tcb *currRunning = runQ_head -> next;
 
-	// if we just yielded
+	// if we just had timer intterupt or yielded
 	if (currRunning -> t_status == READY) {
 		// put current thread block at the end of the runqueue
 		dequeueThread(runQ_head, runQ_tail, 0);
@@ -345,6 +359,93 @@ void init_first_thread() {
 void free_tcb(tcb *t_block) {
 	free(t_block -> t_context.uc_stack.ss_sp);
 	free(t_block);
+}
+
+/*
+ * Save context of current running thread in it's respective current thread block
+ */
+void save_running_context_to_tcb() {
+	// make sure runQ at least has one element inside
+	if (runQ_head -> next != runQ_tail) {
+		tcb *curr_running = runQ_head -> next;
+		getcontext( &(curr_running -> t_context));
+	}
+}
+
+/********************************************************************************************************
+                                  				TIMER HELPERS
+*********************************************************************************************************/
+/*
+struct itimerval {
+    struct timeval it_interval;
+    struct timeval it_value;
+};
+
+struct timeval {
+    time_t      tv_sec;
+    suseconds_t tv_usec;
+};
+*/
+
+/*
+ * Initialize timer to run and create a timer interrupt every quantum
+ * Register signal handler to handle SIGPROF signal
+ *
+ * Source:
+ * https://www.cs.princeton.edu/courses/archive/spring04/cos217/precepthandouts/19/testitimersigaction.c
+ */
+void init_timer(int registerSignalHandler) {
+	struct sigaction sigAction;
+
+	// register a signal handler to handle SIGPROF signals only once
+	if (registerSignalHandler) {
+		sigAction.sa_handler = handleSigProf;
+		sigemptyset(&sigAction.sa_mask);
+		sigaction(SIGPROF, &sigAction, NULL);
+	}
+	startTimer();
+}
+
+/*
+ * Respond to the SIGPROF timer interrupt by changing thread state and going to the scheduler code
+ */
+void handleSigProf(int num) {
+	write(STDOUT_FILENO, "handler for timer\n", 19);
+	// change thread state from Running to Ready
+	tcb *curr_running = runQ_head -> next;
+	curr_running -> t_status = READY;
+
+	// save context of this thread to its thread control block
+	save_running_context_to_tcb();
+	schedule();
+}
+
+/*
+ * Timer decrements from it_value to 0, issues a SIGPROF signal, and resets to it_interval
+ */
+void startTimer() {
+	write(STDOUT_FILENO, "starting timer\n", 16);
+	struct itimerval timerValue;
+
+	timerValue.it_value.tv_sec = 0;
+	timerValue.it_value.tv_usec = 1;
+	timerValue.it_interval.tv_sec = 0;
+	timerValue.it_interval.tv_usec = QUANTUM;
+	setitimer(ITIMER_PROF, &timerValue, NULL);
+}
+
+/*
+ * If both fields in new_value.it_value are zero, then the timer is disarmed.
+ */
+void stopTimer() {
+	write(STDOUT_FILENO, "stopping timer\n", 16);
+	struct itimerval timerValue;
+
+	timerValue.it_value.tv_sec = 0;
+	timerValue.it_value.tv_usec = 0;
+	timerValue.it_interval.tv_sec = 0;
+	timerValue.it_interval.tv_usec = 0;
+	setitimer(ITIMER_PROF, &timerValue, NULL);
 }
 
 

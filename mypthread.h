@@ -12,6 +12,9 @@
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_MYTHREAD macro */
 #define USE_MYTHREAD 1
 
+/* 20000 microseconds = 20 miliseconds will be 1 quantum */
+#define QUANTUM 20000
+
 /* include lib header files that you need here: */
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -20,6 +23,7 @@
 #include <stdlib.h>
 #include <ucontext.h>
 #include <signal.h>
+#include <sys/time.h>
 
 typedef uint mypthread_t;
 typedef enum status{READY, RUNNING, WAITING, TERMINATED} status;
@@ -84,6 +88,12 @@ void prepareQueues();
 
 void init_first_thread();
 void free_tcb(tcb *t_block);
+void save_running_context_to_tcb();
+
+void init_timer(int registerSignalHandler);
+void handleSigProf(int num);
+void startTimer();
+void stopTimer();
 
 void print_tcb(tcb* t_block);
 void print_tcb_linked_list(tcb* head);

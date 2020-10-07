@@ -1,7 +1,8 @@
 # OS-Project2
 Project 2 for Operating Systems: Working further with Threads
 
-## General Info
+## General Struct Info
+### Context structs:
 https://man7.org/linux/man-pages/man3/getcontext.3.html
 
 ucontext_t type is a structure that has at least the following fields:
@@ -16,7 +17,21 @@ typedef struct ucontext_t {
 } ucontext_t;
 ```
 
-uc_link points to the context that will be resumed when the current context terminates (in case the current context was created using makecontext()), uc_stack is the stack used by this context (see sigaltstack(2))
+uc_link points to the context that will be resumed when the current context terminates (in case the current context was created using makecontext()), uc_stack is the stack used by this context
+
+### Timer structs:
+```
+struct itimerval {
+    struct timeval it_interval; // next value
+    struct timeval it_value;    //
+};
+```
+```
+struct timeval {
+    time_t      tv_sec;         //
+    suseconds_t tv_usec;        //
+};
+```
 
 ## Testing
 1. Go to /benchmarks/tests and create a source file and include it in the makefile in the same directory
@@ -43,4 +58,10 @@ make join
 
 2. Should just add the target of the base dir make into the Makefile in benchmarks/tests so we don't have to keep opening 2 shells and having to run Number 4 in testing
 
+
+## TODO
+
+1. Since our signal can come between any two instructions, we want to essentially freeze (or lock) our timer when we're writing data to our linked lists so that memory doesn't get corrupted. Then, after we finish writing, we can continue. Basically we want to ensure that the write gets completed.
+
+2. Should we only send the signal to the current running thread? I think the signal is recived by all threads if I'm not mistaken. Might want to double check and handle accordingly
 
