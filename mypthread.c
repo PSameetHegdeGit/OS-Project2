@@ -13,6 +13,7 @@
  *
  * General structure: Head <-> P0 <-> P1 <-> P2 <-> Tail
  * P0 (head -> next) will always be the running process for the runQ
+ * Note: head and tail are meaningless thread blocks themselves
  */
 
 tcb *runQ_head = NULL;
@@ -33,7 +34,7 @@ mypthread_t idCounter = 1;
 *********************************************************************************************************/
 
 /*
- * create a new thread - Shubham
+ * create a new thread
  */
 int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function)(void*), void *arg) {
 	stopTimer();
@@ -341,7 +342,7 @@ tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory) {
 /*
  * Remove a thread control block at given pointer from queue.
  */
-void *remove_tcb(tcb *t_block) {
+void remove_tcb(tcb *t_block) {
 	if (t_block != NULL) {
 		tcb *prev_t_block = t_block -> prev;
 		tcb *next_t_block = t_block -> next;
@@ -373,6 +374,20 @@ void prepare_queues() {
 		dequeue_tcb(runQ_head, runQ_tail, 0);
 		enqueue_tcb(termQ_head, termQ_tail, currRunning);
 	}
+}
+
+/*
+ * Find a thread control block by it's given thread id in given queue
+ * Return a pointer to the block or NULL if not found
+ */
+tcb* find_tcb_by_id(tcb *head, tcb *tail, mypthread_t thread_id) {
+	head = head -> next;
+	while (head != tail) {
+		if (head -> t_id == thread_id) {
+			return head;
+		}
+	}
+	return NULL;
 }
 
 /********************************************************************************************************
