@@ -65,3 +65,6 @@ make join
 
 2. Should we only send the signal to the current running thread? I think the signal is recived by all threads if I'm not mistaken. Might want to double check and handle accordingly
 
+3. So when the first time you call pthread_create, you actually generate 2 threads, 1 is the original and another is what you just created. If the original's (parent) code finishes first and it doesn't join, the process terminates. We don't really handle that I believe so not really sure how to check the "if parent code is done" condition to terminate the process
+
+4. Kind of going of 3, how does our code handle the 1 process left part? Might not have caught all the edge cases. Not really sure how to best test and see results

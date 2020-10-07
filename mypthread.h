@@ -24,6 +24,7 @@
 #include <ucontext.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <limits.h>
 
 typedef uint mypthread_t;
 typedef enum status{READY, RUNNING, WAITING, TERMINATED} status;
@@ -49,7 +50,7 @@ typedef struct threadControlBlock {
 
 	// maintain an "elapsed" counter - indicates how my time quantum have
 	// passed since thread was schedulder to run
-	int quantum_elapsed;
+	int t_quantum_elapsed;
 
 	// doubly linked list pointers
 	struct threadControlBlock *next;
@@ -81,16 +82,17 @@ static void sched_mlfq();
 
 /* helper functions */
 void init_queue(tcb **headPtr, tcb **tailPtr);
-void enqueueThreadFirst(tcb *head, tcb* tail, tcb *toInsert);
-void enqueueThread(tcb *head, tcb* tail, tcb *toInsert);
-tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory);
-void prepareQueues();
+void enqueue_tcb_first(tcb *head, tcb* tail, tcb *toInsert);
+void enqueue_tcb(tcb *head, tcb* tail, tcb *toInsert);
+tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory);
+void *remove_tcb(tcb *t_block);
+void prepare_queues();
 
 void init_first_thread();
 void free_tcb(tcb *t_block);
 void save_running_context_to_tcb();
 
-void init_timer(int registerSignalHandler);
+void init_timer();
 void handleSigProf(int num);
 void startTimer();
 void stopTimer();

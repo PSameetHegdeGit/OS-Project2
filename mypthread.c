@@ -42,7 +42,7 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 		init_queue(&termQ_head, &termQ_tail);
 
 		init_first_thread();
-		init_timer(1);
+		init_timer();
 
 		init_lib = 1;
 	}
@@ -76,7 +76,7 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 	*thread = new_tcb -> t_id;
 
 	// after everything is all set, push this thread control block onto the run queue
-	enqueueThread(runQ_head, runQ_tail, new_tcb);
+	enqueue_tcb(runQ_head, runQ_tail, new_tcb);
 
 	// TODO: switch context to created thread
 	return 0;
@@ -202,15 +202,27 @@ static void schedule() {
 
 	tcb *initialFirst = runQ_head -> next;
 
+	// increment the quantum of time elapsed of current thread
+	initialFirst -> t_quantum_elapsed += 1;
+
 	// after threads have called functions like exit, yield, we need to clean up our queues
-	prepareQueues();
+	prepare_queues();
 
-	// change first element of the run queue since that is what will be run
-
-
-	// for now, just make whatever the next process is to running
+	// TODO: for now, just make whatever the next process is to running (DELETE LATER)
 	tcb *curr_first = runQ_head -> next;
-	curr_first -> t_status = RUNNING;
+	int getNext = 1;
+	if (getNext) {
+		curr_first -> t_status = RUNNING;
+	} else {
+		// schedule policy
+		#ifndef MLFQ
+			// Choose STCF
+			sched_stcf();
+		#else
+			// Choose MLFQ
+			sched_mlfq();
+		#endif
+	}
 
 	// TODO: start timer
 	startTimer();
@@ -218,24 +230,36 @@ static void schedule() {
 	// save the current context and set the context to the new running process context
 	printf("swapping context to %d\n", curr_first -> t_id);
 	swapcontext( &(initialFirst -> t_context), &(curr_first -> t_context));
-
-	// // schedule policy
-	// #ifndef MLFQ
-	// 	// Choose STCF
-	// 	sched_stcf();
-	// #else
-	// 	// Choose MLFQ
-	// 	sched_mlfq();
-	// #endif
 }
 
 /*
- * Preemptive SJF (STCF) scheduling algorithm
+ * Preemptive SJF (STCF) scheduling algorithm.
+ * Find the tcb that has the smallest t_quantum_elapsed and make that the running process
  */
 static void sched_stcf() {
 	// Your own implementation of STCF
 	// (feel free to modify arguments and return types)
+	int minQuantum = INT_MAX;
+	tcb *min_t_block = NULL;
 
+	tcb *curr_tcb = runQ_head -> next;
+
+	// traverse run queue and find tcb with smallest quantum elapsed
+	while(curr_tcb != runQ_tail) {
+		if (curr_tcb -> t_quantum_elapsed < minQuantum) {
+			minQuantum = curr_tcb -> t_quantum_elapsed;
+			min_t_block = curr_tcb;
+		}
+	}
+
+	if (min_t_block != NULL) {
+		// remove the tcb from the run queue and enqueue it back at position 1
+		remove_tcb(min_t_block);
+		enqueue_tcb_first(runQ_head, runQ_tail, min_t_block);
+
+		// change status from Ready to Running
+		min_t_block -> t_status = RUNNING;
+	}
 }
 
 /*
@@ -269,25 +293,29 @@ void init_queue(tcb **headPtr, tcb **tailPtr) {
  * Insert a thread control block to the start of given queue
  * This is essentially making *toInsert the running process
  */
-void enqueueThreadFirst(tcb *head, tcb* tail, tcb *toInsert) {
-	tcb *currFirst = head -> next;
-	head -> next = toInsert;
+void enqueue_tcb_first(tcb *head, tcb* tail, tcb *toInsert) {
+	if (toInsert != NULL) {
+		tcb *currFirst = head -> next;
+		head -> next = toInsert;
 
-	toInsert -> next = currFirst;
-	toInsert -> prev = head;
-	currFirst -> prev = toInsert;
+		toInsert -> next = currFirst;
+		toInsert -> prev = head;
+		currFirst -> prev = toInsert;
+	}
 }
 
 /*
  * Insert a thread control block to the end of given queue
  */
-void enqueueThread(tcb *head, tcb* tail, tcb *toInsert) {
-	tcb *currLast = tail -> prev;
-	currLast -> next = toInsert;
+void enqueue_tcb(tcb *head, tcb* tail, tcb *toInsert) {
+	if (toInsert != NULL) {
+		tcb *currLast = tail -> prev;
+		currLast -> next = toInsert;
 
-	toInsert -> prev = currLast;
-	toInsert -> next = tail;
-	tail -> prev = toInsert;
+		toInsert -> prev = currLast;
+		toInsert -> next = tail;
+		tail -> prev = toInsert;
+	}
 }
 
 /*
@@ -296,7 +324,7 @@ void enqueueThread(tcb *head, tcb* tail, tcb *toInsert) {
  * Return NULL if empty list or if freeing memory used by tcb,
  * else returns a ptr to tcb
  */
-tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
+tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory) {
 	// make sure list is not initially empty
 	if (head -> next == NULL || head -> next == tail) {
 		return NULL;
@@ -315,23 +343,39 @@ tcb* dequeueThread(tcb *head, tcb *tail, int freeMemory) {
 }
 
 /*
+ * Remove a thread control block at given pointer from queue.
+ */
+void *remove_tcb(tcb *t_block) {
+	if (t_block != NULL) {
+		tcb *prev_t_block = t_block -> prev;
+		tcb *next_t_block = t_block -> next;
+
+		prev_t_block -> next = next_t_block;
+		next_t_block -> prev = prev_t_block;
+	}
+}
+
+/*
  * Called by scheduler to clean up our queues after functions like yield and exit.
  * Dequeue the current process and enqueue it into the appropriate queue
  */
-void prepareQueues() {
+void prepare_queues() {
 	tcb *currRunning = runQ_head -> next;
 
-	// if we just had timer intterupt or yielded
+	// if we came from timer interrupt, change status of tcb from Running to Ready
+	currRunning -> t_status = READY;
+
+	// if we just had timer interupt or yielded
 	if (currRunning -> t_status == READY) {
 		// put current thread block at the end of the runqueue
-		dequeueThread(runQ_head, runQ_tail, 0);
-		enqueueThread(runQ_head, runQ_tail, currRunning);
+		dequeue_tcb(runQ_head, runQ_tail, 0);
+		enqueue_tcb(runQ_head, runQ_tail, currRunning);
 	}
 	// if we just exited
 	else if (currRunning -> t_status == TERMINATED) {
 		// put current thread at the end of the terminated queue
-		dequeueThread(runQ_head, runQ_tail, 0);
-		enqueueThread(termQ_head, termQ_tail, currRunning);
+		dequeue_tcb(runQ_head, runQ_tail, 0);
+		enqueue_tcb(termQ_head, termQ_tail, currRunning);
 	}
 }
 
@@ -350,7 +394,7 @@ void init_first_thread() {
 	// priority = -1 is the highest priority
 	new_tcb -> t_priority = -1;
 
-	enqueueThread(runQ_head, runQ_tail, new_tcb);
+	enqueue_tcb(runQ_head, runQ_tail, new_tcb);
 }
 
 /*
@@ -375,17 +419,6 @@ void save_running_context_to_tcb() {
 /********************************************************************************************************
                                   				TIMER HELPERS
 *********************************************************************************************************/
-/*
-struct itimerval {
-    struct timeval it_interval;
-    struct timeval it_value;
-};
-
-struct timeval {
-    time_t      tv_sec;
-    suseconds_t tv_usec;
-};
-*/
 
 /*
  * Initialize timer to run and create a timer interrupt every quantum
@@ -394,15 +427,14 @@ struct timeval {
  * Source:
  * https://www.cs.princeton.edu/courses/archive/spring04/cos217/precepthandouts/19/testitimersigaction.c
  */
-void init_timer(int registerSignalHandler) {
+void init_timer() {
 	struct sigaction sigAction;
 
-	// register a signal handler to handle SIGPROF signals only once
-	if (registerSignalHandler) {
-		sigAction.sa_handler = handleSigProf;
-		sigemptyset(&sigAction.sa_mask);
-		sigaction(SIGPROF, &sigAction, NULL);
-	}
+	// register a signal handler to handle SIGPROF signals
+	sigAction.sa_handler = handleSigProf;
+	sigemptyset(&sigAction.sa_mask);
+	sigaction(SIGPROF, &sigAction, NULL);
+
 	startTimer();
 }
 
