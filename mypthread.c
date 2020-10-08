@@ -106,7 +106,7 @@ int mypthread_yield() {
 	// save context of this thread to its thread control block
 	save_running_context_to_tcb();
 
-	// switch from thread context to scheduler context - done in schedule()
+	// switch from thread context to scheduler context
 	schedule();
 	return 0;
 }
@@ -358,9 +358,6 @@ void remove_tcb(tcb *t_block) {
  */
 void prepare_queues() {
 	tcb *currRunning = runQ_head -> next;
-
-	// if we came from timer interrupt, change status of tcb from Running to Ready
-	currRunning -> t_status = READY;
 
 	// if we just had timer interupt or yielded
 	if (currRunning -> t_status == READY) {

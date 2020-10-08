@@ -12,8 +12,8 @@
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_MYTHREAD macro */
 #define USE_MYTHREAD 1
 
-/* 20000 microseconds = 20 miliseconds will be 1 quantum */
-#define QUANTUM 20000
+/* 5000 microseconds = 5 miliseconds will be 1 quantum */
+#define QUANTUM 5000
 
 /* include lib header files that you need here: */
 #include <unistd.h>
