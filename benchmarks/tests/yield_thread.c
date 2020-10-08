@@ -27,7 +27,9 @@ should print out:
 start thread 0
 start thread 1
 finish thread 1
-finish thread 0
+finish thread 0 *** DOESN'T print because thread ends and we never go back to scheduler?
+
+TODO: confirm above
 */
 int main(int argc, char **argv) {
 	pthread_t tid;

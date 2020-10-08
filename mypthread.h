@@ -107,6 +107,7 @@ void print_tcb_linked_list(tcb* head);
 #define pthread_create mypthread_create
 #define pthread_exit mypthread_exit
 #define pthread_join mypthread_join
+#define pthread_yield mypthread_yield
 #define pthread_mutex_init mypthread_mutex_init
 #define pthread_mutex_lock mypthread_mutex_lock
 #define pthread_mutex_unlock mypthread_mutex_unlock
