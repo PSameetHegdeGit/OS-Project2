@@ -72,6 +72,8 @@ make join
 5. Exit from process if there are no threads in run queue?
     - how do you know when a thread is done? We want to switch to scheduler function, but all we really have control over is uc_link and that requires us to make schedule into a context, not a function.
 
+6. If I have thread0 that created thread1 and thread1 finishes execution in 1 second and timer interrupt happens every 2 second, what will be the result after thread1 finishes execution? Does it just hang for another second and we go scheduler? How do we know it's done and mark it as completed and remove it from the run queue? Will it just be wasting clock cycles if scheduled to run again since it's still in run queue but now has no more code to execute?
+
 
 ## Errors
 

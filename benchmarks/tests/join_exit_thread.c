@@ -4,19 +4,6 @@
 #include <pthread.h>
 #include "../../mypthread.h"
 
-/*
- * Prints out:
- * A
- * A
- * ...
- * B
- * B
- * ...
- * A
- * A
- * ....
- */
-
 extern tcb *runQ_head;
 extern tcb *runQ_tail;
 
@@ -24,31 +11,36 @@ extern tcb *runQ_tail;
 void* thread1(void *arg) {
 	puts("starting thread 1");
 	int i;
-	while (1) {
-		puts("b");
-	}
+    int j = 0;
+	for (i = 0; i < 100000; i++) {
+        j++;
+    }
 	puts("finished thread 1");
-	return NULL;
+	pthread_exit((void*) -1);
 }
 
 // run by TID: 0
 void thread0() {
 	puts("starting thread 0");
 	int i;
-	while(1) {
-		puts("a");
-	}
+    int j = 0;
+	for (i = 0; i < 10; i++) {
+        j++;
+    }
 	puts("finished thread 0");
 }
 
-
+// should print out "return value: -1"
 int main(int argc, char **argv) {
 	pthread_t tid;
 
 	pthread_create(&tid, NULL, thread1, NULL);
-	//pthread_create(&tid[1], NULL, thread1, NULL);
-
 	thread0();
+
+	int retVal;
+	// thread 0 joining thread 1
+    pthread_join(tid, (void**)&retVal);
 	print_tcb_linked_list(runQ_head);
+	printf("return value: %d\n", retVal);
 	return 0;
 }
