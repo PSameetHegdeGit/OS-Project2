@@ -63,9 +63,9 @@ make join
 
 1. Since our signal can come between any two instructions, we want to essentially freeze (or lock) our timer when we're writing data to our linked lists so that memory doesn't get corrupted. Then, after we finish writing, we can continue. Basically we want to ensure that the write gets completed.
 
-2. Should we only send the signal to the current running thread? I think the signal is recived by all threads if I'm not mistaken. Might want to double check and handle accordingly
+2. Should we only send the signal to the current running thread? I think the signal is recived by all threads if I'm not mistaken. Might want to double check and handle accordingly (guess this doesn't matter since one thread only runs at a given time. what's the point of user level libraries then if they can't do anything in parallel?)
 
-3. So when the first time you call pthread_create, you actually generate 2 threads, 1 is the original and another is what you just created. If the original's (parent) code finishes first and it doesn't join, the process terminates. We don't really handle that I believe so not really sure how to check the "if parent code is done" condition to terminate the process
+3. So when the first time you call pthread_create, you actually generate 2 threads, 1 is the original and another is what you just created. If the original's (parent) code finishes first and it doesn't join, the process terminates. We don't really handle that I believe so not really sure how to check the "if parent code is done" condition to terminate the process. Is this how it's supposed to go? Are all threads supposed to call pthread_exit after they finish - if so, how?
 
 4. Kind of going of 3, how does our code handle the 1 process left part? Might not have caught all the edge cases. Not really sure how to best test and see results
 
@@ -74,6 +74,19 @@ make join
 
 6. If I have thread0 that created thread1 and thread1 finishes execution in 1 second and timer interrupt happens every 2 second, what will be the result after thread1 finishes execution? Does it just hang for another second and we go scheduler? How do we know it's done and mark it as completed and remove it from the run queue? Will it just be wasting clock cycles if scheduled to run again since it's still in run queue but now has no more code to execute?
     - Actually just terminates and we never go back to thread 0
+
+7. If thread0 creates thread1. What is supposed to happen in each, assuming a 2 second timer interval:
+    - thread0 takes 1 sec to complete and thread1 takes 1 minute
+    - thread1 takes 1 minute to complete and thread0 takes 1 minute
+
+8. Profiling timer error
+    - are you allowed to use swapcontext and whatever is in scheduler from the signal handler? signal safe?
+
+9. If there's just one thread and it yields, what should happen? If no thread has been created and yield is called, what happens?
+
+10. When to clean up all memory? For example, if a thread exits and it doesn't have join called on it, and the main thread finishes execution, how do we just clean everything up? Is there some way for us to test "when all code is done running"
+
+11. What happens if you try to join a nonexisting thread? Is returning -1 fine?
 
 
 ## Errors

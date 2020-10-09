@@ -138,9 +138,33 @@ void mypthread_exit(void *value_ptr) {
  * Wait for thread termination
  */
 int mypthread_join(mypthread_t thread, void **value_ptr) {
-	// wait for a specific thread to terminate
-	// de-allocate any dynamic memory created by the joining thread
 
+	// look through the run queue to see if the tcb is there
+	tcb* join_target = find_tcb_by_id(runQ_head, runQ_tail, thread);
+
+	// found in run queue, so we can just yield current thread and wait for
+	// that thread to finish it's execution
+	if (join_target != NULL) {
+		while(join_target -> t_status != TERMINATED) {
+			mypthread_yield();
+   		}
+	}
+	// otherwise, look through the terminated queue to see if the tcb is there
+	else {
+		tcb* join_target = find_tcb_by_id(termQ_head, termQ_tail, thread);
+	}
+
+	// not found in run queue or terminated queue so tcb doesn't exist
+	if (join_target == NULL) {
+		return -1;
+	}
+
+	if (value_ptr) {
+		*value_ptr = join_target -> t_return_val;
+	}
+
+	// de-allocate any dynamic memory created by the joining thread
+	remove_tcb(join_target, 1);
 	return 0;
 };
 
@@ -251,7 +275,7 @@ static void sched_stcf() {
 
 	if (min_t_block != NULL) {
 		// remove the tcb from the run queue and enqueue it back at position 1
-		remove_tcb(min_t_block);
+		remove_tcb(min_t_block, 0);
 		enqueue_tcb_first(runQ_head, runQ_tail, min_t_block);
 
 		// change status from Ready to Running
@@ -342,13 +366,18 @@ tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory) {
 /*
  * Remove a thread control block at given pointer from queue.
  */
-void remove_tcb(tcb *t_block) {
+void remove_tcb(tcb *t_block, int freeMemory) {
 	if (t_block != NULL) {
 		tcb *prev_t_block = t_block -> prev;
 		tcb *next_t_block = t_block -> next;
 
 		prev_t_block -> next = next_t_block;
 		next_t_block -> prev = prev_t_block;
+	}
+
+	// free allocated memory (including stack)
+	if (freeMemory) {
+		free_tcb(t_block);
 	}
 }
 
