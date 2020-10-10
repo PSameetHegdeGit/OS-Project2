@@ -466,6 +466,7 @@ void save_running_context_to_tcb() {
  */
 void register_sigprof_handler() {
 	struct sigaction sigAction;
+	memset(&sigAction, 0, sizeof(struct sigaction));
 
 	// register a signal handler to handle SIGPROF signals
 	sigAction.sa_handler = handleSigProf;
@@ -477,6 +478,8 @@ void register_sigprof_handler() {
  * Respond to the SIGPROF timer interrupt by changing thread state and going to the scheduler code
  */
 void handleSigProf(int num) {
+	stopTimer();
+
 	// change thread state from Running to Ready
 	tcb *curr_running = runQ_head -> next;
 	curr_running -> t_status = READY;

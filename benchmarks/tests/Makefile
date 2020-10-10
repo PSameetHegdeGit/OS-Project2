@@ -9,5 +9,5 @@ all:
 	$(CC) $(CFLAGS) -pthread -o join_exit join_exit_thread.c -L../../ -lmypthread
 
 clean:
-	rm -rf create_thread join_exit yield_thread *.o
+	rm -rf create_thread join_exit yield_thread *.o peda*
 

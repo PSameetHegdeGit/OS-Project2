@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <limits.h>
+#include <string.h>
 
 typedef uint mypthread_t;
 typedef enum status{READY, RUNNING, WAITING, TERMINATED} status;
