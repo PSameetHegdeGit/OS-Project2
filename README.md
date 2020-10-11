@@ -61,17 +61,15 @@ make join
 
 ## TODO
 
-1. Since our signal can come between any two instructions, we want to essentially stop timer and start timer whenever we read/write any data to the queues
+1. Since our signal can come between any two instructions, we want to essentially stop timer and start timer whenever we read/write any data to the queues. Seems to work fine without, but probably should do anyway
 
-2. All threads will use join and exit, so don't need to handle edge cases
 
-3. On exit, just put a TCB in a terminated queue (free it's stack). Then when we join, can free the whole TCB
+## Notes
+
+1. All threads will use join and exit, so don't need to handle edge cases
 
 
 ## Errors
 
-1. Profiling timer error: for whatever reason, sometimes when you run the create_thread.c program under benchmarks/tests, you get an error like "profiling timer expired". Only happens sometimes so could be a race condition, but not really since only one thread runs at any given moment, so not really sure
-    - need to stop timer when we get into signal handler
-    - need to memset all structs to 0 to fix
-
+1. None as of now :)
 
