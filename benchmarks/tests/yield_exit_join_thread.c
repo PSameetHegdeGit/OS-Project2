@@ -21,6 +21,15 @@ void thread0() {
 	puts("finished thread 0");
 }
 
+
+/*
+ * Test pthread yield as well as join and exit
+ * should print out:
+ *	"starting thread 0"
+ *  "starting thread 1"
+ *  "finished thread 1"
+ *  "finished thread 0"
+ */
 int main(int argc, char **argv) {
 	pthread_t tid;
 

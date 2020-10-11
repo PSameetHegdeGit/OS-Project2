@@ -100,7 +100,6 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 int mypthread_yield() {
 	stopTimer();
 
-	puts("YIELDING");
 	tcb *curr_running = runQ_head -> next;
 
 	// change thread state from Running to Ready

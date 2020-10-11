@@ -6,22 +6,14 @@
 
 /*
  * Prints out:
- * A
- * A
- * ...
- * B
- * B
- * ...
- * A
- * A
- * ....
+
  */
 
 extern tcb *runQ_head;
 extern tcb *runQ_tail;
 
-// Run by TID: 1
-void* thread1(void *arg) {
+// Run by TID: 2
+void* thread2(void *arg) {
 	puts("starting thread 1");
 	int i = 0;
 	while (1) {
@@ -32,8 +24,8 @@ void* thread1(void *arg) {
 	}
 }
 
-// run by TID: 0
-void thread0() {
+// run by TID: 1
+void thread1() {
 	puts("starting thread 0");
 	int i = 0;
 	while(1) {
@@ -44,12 +36,24 @@ void thread0() {
 	}
 }
 
-
+/*
+ * Test pthread create (infinite loop)
+ * should print out:
+ * 		A
+ * 		A
+ * 		...
+ * 		B
+ * 		B
+ * 		...
+ * 		A
+ * 		A
+ * 		....
+ */
 int main() {
 	pthread_t tid;
-	pthread_create(&tid, NULL, thread1, NULL);
+	pthread_create(&tid, NULL, thread2, NULL);
 
-	thread0();
+	thread1();
 	print_tcb_linked_list(runQ_head);
 	return 0;
 }
