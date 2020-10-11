@@ -92,6 +92,7 @@ tcb* find_tcb_by_id(tcb *head, tcb *tail, mypthread_t thread_id);
 
 void init_first_thread();
 void free_tcb(tcb *t_block);
+void free_queue(tcb *head);
 void save_running_context_to_tcb();
 
 void register_sigprof_handler();

@@ -87,19 +87,8 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
 
 /*
  * give CPU possession to other user-level threads voluntarily
- *
- * TODO: edge case:
- * 1. what happens when there's just one thread?
- * Does it just keep executing after yielding?
- * 2. what happens when there are no threads?
- * We call mypthread_yield without creating?
- *
- * 3. Timer
- *
  */
 int mypthread_yield() {
-	stopTimer();
-
 	tcb *curr_running = runQ_head -> next;
 
 	// change thread state from Running to Ready
@@ -227,6 +216,8 @@ static void schedule() {
 
 	// after the last thread calls exit, nothing left in run queue, so simply exit process
 	if (runQ_head -> next == runQ_tail) {
+		free_queue(runQ_head);
+		free_queue(termQ_head);
 		exit(EXIT_SUCCESS);
 	}
 
@@ -431,6 +422,17 @@ void init_first_thread() {
 void free_tcb(tcb *t_block) {
 	free(t_block -> t_context.uc_stack.ss_sp);
 	free(t_block);
+}
+
+/*
+ * Free all allocated memory of a queue (including head and tail tcb)
+ */
+void free_queue(tcb *head) {
+	while (head) {
+		tcb *temp = head;
+		head = head -> next;
+		free_tcb(temp);
+	}
 }
 
 /*
