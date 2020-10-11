@@ -39,7 +39,12 @@ void thread1() {
 
 /*
  * Thread1 (the initial thread) takes long time to run and the child thread joins it
- * should print out "return value: -1"
+ * should print out:
+ *	"starting thread 1"
+ *  "starting thread 2"
+ *  "finished thread 1"
+ *  "return value: -1"
+ *  "finished thread 2"
  */
 int main(int argc, char **argv) {
 	pthread_t tid;

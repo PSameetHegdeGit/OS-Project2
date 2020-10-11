@@ -63,8 +63,6 @@ make join
 
 1. Since our signal can come between any two instructions, we want to essentially stop timer and start timer whenever we read/write any data to the queues. Seems to work fine without, but probably should do anyway
 
-2. Add a "free_all_memory" method right before we call "exit(EXIT_SUCCESS)" in scheduler since head and tail of runqueue are thread control blocks and there may be some left in the terminated queue that were never joined on.
-
 
 ## Notes
 
