@@ -87,7 +87,7 @@ void enqueue_tcb_first(tcb *head, tcb* tail, tcb *toInsert);
 void enqueue_tcb(tcb *head, tcb* tail, tcb *toInsert);
 tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory);
 void remove_tcb(tcb *t_block, int freeMemory);
-void prepare_queues();
+void remove_terminated();
 tcb* find_tcb_by_id(tcb *head, tcb *tail, mypthread_t thread_id);
 
 void init_first_thread();

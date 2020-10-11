@@ -11,7 +11,7 @@ extern tcb *runQ_tail;
 void* thread1(void *arg) {
 	puts("starting thread 1");
 	puts("finished thread 1");
-	return NULL;
+	pthread_exit(NULL);
 }
 
 // run by TID: 0
@@ -19,24 +19,16 @@ void thread0() {
 	puts("starting thread 0");
     pthread_yield();
 	puts("finished thread 0");
-	return -1;
 }
 
-/*
-should print out:
-start thread 0
-start thread 1
-finish thread 1
-finish thread 0 *** DOESN'T print because thread ends and we never go back to scheduler?
-
-TODO: confirm above
-*/
 int main(int argc, char **argv) {
 	pthread_t tid;
 
 	pthread_create(&tid, NULL, thread1, NULL);
 	thread0();
 
-	print_tcb_linked_list(runQ_head);
+	// thread 0 joining thread 1
+    pthread_join(tid, NULL);
+	pthread_exit(NULL);
 	return 0;
 }

@@ -5,9 +5,8 @@ CFLAGS = -g -w
 
 all:
 	$(CC) $(CFLAGS) -pthread -o create_thread create_thread.c -L../../ -lmypthread
-	$(CC) $(CFLAGS) -pthread -o yield_thread yield_thread.c -L../../ -lmypthread
-	$(CC) $(CFLAGS) -pthread -o join_exit join_exit_thread.c -L../../ -lmypthread
+	$(CC) $(CFLAGS) -pthread -o yield_exit_join_thread yield_exit_join_thread.c -L../../ -lmypthread
+	$(CC) $(CFLAGS) -pthread -o yield_exit_join_thread_2 yield_exit_join_thread_2.c -L../../ -lmypthread
 
 clean:
-	rm -rf create_thread join_exit yield_thread *.o peda*
-
+	rm -rf create_thread yield_exit_join_thread yield_exit_join_thread_2 *.o peda* .gdb_history

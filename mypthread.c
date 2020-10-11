@@ -98,6 +98,9 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
  *
  */
 int mypthread_yield() {
+	stopTimer();
+
+	puts("YIELDING");
 	tcb *curr_running = runQ_head -> next;
 
 	// change thread state from Running to Ready
@@ -113,14 +116,11 @@ int mypthread_yield() {
 
 /*
  * terminate a thread
- * TODO: Need to go back to scheduler?
- * TODO: What happens when you exit but it hasn't had join called on it?
  */
 void mypthread_exit(void *value_ptr) {
 	tcb *curr_running = runQ_head -> next;
 
-	// Deallocated any dynamic memory created when starting this thread
-	free(curr_running -> t_context.uc_stack.ss_sp);
+	// Deallocated any dynamic memory created when starting this thread (done in join)
 
 	// change thread state from Running to Terminated
 	curr_running -> t_status = TERMINATED;
@@ -144,7 +144,7 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 
 	// found in run queue, so we can just yield current thread and wait for
 	// that thread to finish it's execution
-	if (join_target != NULL) {
+	if (join_target) {
 		while(join_target -> t_status != TERMINATED) {
 			mypthread_yield();
    		}
@@ -214,38 +214,33 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 *********************************************************************************************************/
 
 /*
- * scheduler
- * "context switch" to here when timer interrupt happens or thread yields (need to decide what to run next)
- *
- * TODO: confirm whether we acutally need a context switch
+ * scheduler - invoked on timer interrupt or thread yields (decide what to run next)
  */
 static void schedule() {
 	stopTimer();
-
 	tcb *initialFirst = runQ_head -> next;
 
 	// increment the quantum of time elapsed of current thread
 	initialFirst -> t_quantum_elapsed += 1;
 
-	// after threads have called functions like exit, yield, we need to clean up our queues
-	prepare_queues();
+	// after exit, remove terminated tcb from runqueue and put in terminated queue, if it exists
+	remove_terminated();
 
-	// TODO: for now, just make whatever the next process is to running (DELETE LATER)
-	tcb *curr_first = runQ_head -> next;
-	int getNext = 1;
-	if (getNext) {
-		curr_first -> t_status = RUNNING;
-	} else {
-		// schedule policy
-		#ifndef MLFQ
-			// Choose STCF
-			sched_stcf();
-		#else
-			// Choose MLFQ
-			sched_mlfq();
-		#endif
+	// after the last thread calls exit, nothing left in run queue, so simply exit process
+	if (runQ_head -> next == runQ_tail) {
+		exit(EXIT_SUCCESS);
 	}
 
+	// schedule policy
+	#ifndef MLFQ
+		// Choose STCF
+		sched_stcf();
+	#else
+		// Choose MLFQ
+		sched_mlfq();
+	#endif
+
+	tcb *curr_first = runQ_head -> next;
 	startTimer();
 
 	// save the current context and set the context to the new running process context
@@ -258,22 +253,21 @@ static void schedule() {
  * Find the tcb that has the smallest t_quantum_elapsed and make that the running process
  */
 static void sched_stcf() {
-	// Your own implementation of STCF
 	// (feel free to modify arguments and return types)
 	int minQuantum = INT_MAX;
 	tcb *min_t_block = NULL;
 
 	tcb *curr_tcb = runQ_head -> next;
-
 	// traverse run queue and find tcb with smallest quantum elapsed
 	while(curr_tcb != runQ_tail) {
 		if (curr_tcb -> t_quantum_elapsed < minQuantum) {
 			minQuantum = curr_tcb -> t_quantum_elapsed;
 			min_t_block = curr_tcb;
 		}
+		curr_tcb = curr_tcb -> next;
 	}
 
-	if (min_t_block != NULL) {
+	if (min_t_block) {
 		// remove the tcb from the run queue and enqueue it back at position 1
 		remove_tcb(min_t_block, 0);
 		enqueue_tcb_first(runQ_head, runQ_tail, min_t_block);
@@ -315,7 +309,7 @@ void init_queue(tcb **headPtr, tcb **tailPtr) {
  * This is essentially making *toInsert the running process
  */
 void enqueue_tcb_first(tcb *head, tcb* tail, tcb *toInsert) {
-	if (toInsert != NULL) {
+	if (toInsert) {
 		tcb *currFirst = head -> next;
 		head -> next = toInsert;
 
@@ -329,7 +323,7 @@ void enqueue_tcb_first(tcb *head, tcb* tail, tcb *toInsert) {
  * Insert a thread control block to the end of given queue
  */
 void enqueue_tcb(tcb *head, tcb* tail, tcb *toInsert) {
-	if (toInsert != NULL) {
+	if (toInsert) {
 		tcb *currLast = tail -> prev;
 		currLast -> next = toInsert;
 
@@ -351,8 +345,12 @@ tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory) {
 		return NULL;
 	}
 
+	// remove first node
 	tcb *remove_tcb = head -> next;
+	tcb *after_remove_tcb = remove_tcb -> next;
+
 	head -> next = remove_tcb -> next;
+	after_remove_tcb -> prev = head;
 
 	// free allocated memory (including stack)
 	if (freeMemory) {
@@ -367,9 +365,10 @@ tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory) {
  * Remove a thread control block at given pointer from queue.
  */
 void remove_tcb(tcb *t_block, int freeMemory) {
-	if (t_block != NULL) {
+	if (t_block) {
 		tcb *prev_t_block = t_block -> prev;
 		tcb *next_t_block = t_block -> next;
+
 
 		prev_t_block -> next = next_t_block;
 		next_t_block -> prev = prev_t_block;
@@ -382,21 +381,13 @@ void remove_tcb(tcb *t_block, int freeMemory) {
 }
 
 /*
- * Called by scheduler to clean up our queues after functions like yield and exit.
- * Dequeue the current process and enqueue it into the appropriate queue
+ * Removes any terminated process from run queue to terminated queue
  */
-void prepare_queues() {
+void remove_terminated() {
 	tcb *currRunning = runQ_head -> next;
 
-	// if we just had timer interupt or yielded
-	if (currRunning -> t_status == READY) {
-		// put current thread block at the end of the runqueue
-		dequeue_tcb(runQ_head, runQ_tail, 0);
-		enqueue_tcb(runQ_head, runQ_tail, currRunning);
-	}
-	// if we just exited
-	else if (currRunning -> t_status == TERMINATED) {
-		// put current thread at the end of the terminated queue
+	// if we just exited, remove from run queue and put at the end of the terminated queue
+	if (currRunning -> t_status == TERMINATED) {
 		dequeue_tcb(runQ_head, runQ_tail, 0);
 		enqueue_tcb(termQ_head, termQ_tail, currRunning);
 	}
@@ -412,6 +403,7 @@ tcb* find_tcb_by_id(tcb *head, tcb *tail, mypthread_t thread_id) {
 		if (head -> t_id == thread_id) {
 			return head;
 		}
+		head = head -> next;
 	}
 	return NULL;
 }
@@ -427,7 +419,7 @@ void init_first_thread() {
 	tcb *new_tcb = calloc(1, sizeof(tcb));
 
 	new_tcb -> t_status = RUNNING;
-	new_tcb -> t_id = 0;
+	new_tcb -> t_id = idCounter++;
 	// priority = -1 is the highest priority
 	new_tcb -> t_priority = -1;
 
@@ -535,10 +527,16 @@ void print_tcb(tcb* t_block) {
 		printf(
 			"ID: %d\n"
 			"Status: %s\n"
-			"Priority %d\n",
+			"Priority: %d\n"
+			"Quantum elapsed: %d\n"
+			"Next: %d\n"
+			"Prev: %d\n",
 			t_block -> t_id,
 			status[t_block -> t_status],
-			t_block -> t_priority
+			t_block -> t_priority,
+			t_block -> t_quantum_elapsed,
+			(t_block -> next) -> t_id,
+			(t_block -> prev) -> t_id
 		);
 	}
 
