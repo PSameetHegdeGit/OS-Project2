@@ -63,6 +63,8 @@ make join
 
 1. Since our signal can come between any two instructions, we want to essentially stop timer and start timer whenever we read/write any data to the queues. Seems to work fine without, but probably should do anyway
 
+2. Should we assign a stack to the first thread created by init_first_thread() method? Double check
+
 
 ## Notes
 

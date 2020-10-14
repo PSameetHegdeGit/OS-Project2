@@ -270,7 +270,7 @@ static void sched_stcf() {
 /*
  * Preemptive MLFQ scheduling algorithm
  *
- * TODO: confirm this is only for 518
+ * DON'T DO THIS METHOD - ONLY FOR 518
  */
 static void sched_mlfq() {
 	// Your own implementation of MLFQ
