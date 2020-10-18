@@ -28,7 +28,7 @@
 #include <string.h>
 
 typedef uint mypthread_t;
-typedef enum status{READY, RUNNING, WAITING, TERMINATED} status;
+typedef enum status{READY, RUNNING, WAITING, TERMINATED, SLEEP} status;
 
 typedef struct threadControlBlock {
 	// thread Id
@@ -60,7 +60,14 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct mypthread_mutex_t {
-	/* add something here */
+	
+	// binary semaphore implementation
+	int t_semaphore;
+
+	// queue struct to keep track of threads waiting for lock
+	tcb *head;
+	tcb *tail;
+
 } mypthread_mutex_t;
 
 

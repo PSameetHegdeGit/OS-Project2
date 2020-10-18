@@ -1,7 +1,7 @@
 // File:	mypthread.c
 
-// List all group member's name: Shubham Rustagi, Sameet Hedge
-// username of iLab: sr1034,
+// List all group member's name: Shubham Rustagi, Sameet Hegde
+// username of iLab: sr1034, srh155
 // iLab Server: man
 
 #include "mypthread.h"
@@ -164,7 +164,14 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
  * initialize the mutex lock
  */
 int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
-	//initialize data structures for this mutex
+	
+	mutex = malloc(sizeof(mypthread_mutex_t));
+
+	// Initializing mutex
+	mutex->t_semaphore = 1;
+	mutex->head = NULL;
+	mutex->tail = NULL;
+
 	return 0;
 };
 
@@ -172,10 +179,27 @@ int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mu
  *  aquire the mutex lock
  */
 int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
-        // use the built-in test-and-set atomic function to test the mutex
         // if the mutex is acquired successfully, enter the critical section
         // if acquiring mutex fails, push current thread into block list and //
         // context switch to the scheduler thread
+
+		mutex->t_semaphore = --mutex->t_semaphore;
+
+		if(mutex->t_semaphore < 0){
+
+			// Idk what value should be in free memory
+			tcb *curr_running = dequeue_tcb(runQ_head, runQ_tail, 4);
+			
+			// change thread state from Running to Ready
+			curr_running -> t_status = SLEEP;
+
+			// save context of this thread to its thread control block
+			save_running_context_to_tcb();
+
+			enqueue_tcb(mutex->head, mutex->tail, curr_running);
+			schedule();
+		}
+
         return 0;
 };
 
@@ -186,6 +210,13 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 	// Release mutex and make it available again.
 	// Put threads in block list to run queue
 	// so that they could compete for mutex later.
+	mutex->t_semaphore = ++mutex->t_semaphore;
+
+	if (mutex->t_semaphore >= 0){
+		tcb* threadToAwaken = dequeue_tcb(mutex->head, mutex->tail, 4);
+		enqueue_tcb(runQ_head, runQ_tail, threadToAwaken);
+	}
+
 	return 0;
 };
 
@@ -193,7 +224,7 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
  * destroy the mutex
  */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
-	// Deallocate dynamic memory created in mypthread_mutex_init
+	free(mutex);
 	return 0;
 };
 
