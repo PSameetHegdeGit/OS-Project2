@@ -28,7 +28,7 @@
 #include <string.h>
 
 typedef uint mypthread_t;
-typedef enum status{READY, RUNNING, WAITING, TERMINATED, SLEEP} status;
+typedef enum status{READY, RUNNING, BLOCKED, TERMINATED} status;
 
 typedef struct threadControlBlock {
 	// thread Id
@@ -60,13 +60,13 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct mypthread_mutex_t {
-	
+
 	// binary semaphore implementation
-	int t_semaphore;
+	int m_semaphore;
 
 	// queue struct to keep track of threads waiting for lock
-	tcb *head;
-	tcb *tail;
+	tcb *m_head;
+	tcb *m_tail;
 
 } mypthread_mutex_t;
 
@@ -84,7 +84,7 @@ int mypthread_mutex_lock(mypthread_mutex_t *mutex);
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex);
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex);
 
-static void schedule();
+static void schedule(mypthread_mutex_t *mutex);
 static void sched_stcf();
 static void sched_mlfq();
 
@@ -95,6 +95,7 @@ void enqueue_tcb(tcb *head, tcb* tail, tcb *toInsert);
 tcb* dequeue_tcb(tcb *head, tcb *tail, int freeMemory);
 void remove_tcb(tcb *t_block, int freeMemory);
 void remove_terminated();
+void remove_blocked(mypthread_mutex_t *mutex);
 tcb* find_tcb_by_id(tcb *head, tcb *tail, mypthread_t thread_id);
 
 void init_first_thread();
@@ -106,6 +107,7 @@ void register_sigprof_handler();
 void handleSigProf(int num);
 void startTimer();
 void stopTimer();
+void resumeTimer();
 
 void print_tcb(tcb* t_block);
 void print_tcb_linked_list(tcb* head);
