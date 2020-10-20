@@ -132,11 +132,9 @@ void mypthread_exit(void *value_ptr) {
  */
 int mypthread_join(mypthread_t thread, void **value_ptr) {
 	stopTimer();
-
 	// look through the run queue to see if the tcb is there
 	tcb* join_target = find_tcb_by_id(runQ_head, runQ_tail, thread);
 	resumeTimer();
-
 
 	// found in run queue, so we can just yield current thread and wait for
 	// that thread to finish it's execution
@@ -178,8 +176,6 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
  */
 int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
 	stopTimer();
-
-	*mutex = *((mypthread_mutex_t*) calloc(1, sizeof( mypthread_mutex_t )));
 
 	// Initialize mutex
 	mutex -> m_semaphore = 1;
@@ -244,9 +240,9 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 	stopTimer();
 
+	// only free TCB since mutex allocated on stack
 	free_tcb(mutex -> m_head);
 	free_tcb(mutex -> m_tail);
-	free(mutex);
 
 	resumeTimer();
 	return 0;
