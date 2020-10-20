@@ -26,11 +26,19 @@ void* trythis(void* arg) {
     return NULL;
 }
 
+
+/*
+ * should print out:
+ *    Job 1 started
+ *    Job 1 finished
+ *    Job 2 started
+ *    Job 2 finished
+ */
 int main(void) {
     int i = 0;
     int error;
 
-    pthread_mutex_init(&lock, NULL) != 0)
+    pthread_mutex_init(&lock, NULL);
 
     while (i < 2) {
         pthread_create(&(tid[i]), NULL, &trythis, NULL);
