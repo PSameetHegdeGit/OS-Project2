@@ -1,7 +1,7 @@
 // File:	mypthread.c
 
-// List all group member's name: Shubham Rustagi, Sameet Hedge
-// username of iLab: sr1034,
+// List all group member's name: Shubham Rustagi, Sameet Hegde
+// username of iLab: sr1034, srh155
 // iLab Server: man
 
 #include "mypthread.h"
@@ -28,6 +28,9 @@ int init_lib = 0;
 // counter for unique thread id
 mypthread_t idCounter = 1;
 
+// keep track of time
+struct itimerval timerValue;
+struct itimerval oldTimerValue;
 
 /********************************************************************************************************
                                   					PThreads
@@ -89,6 +92,7 @@ int mypthread_create(mypthread_t *thread, pthread_attr_t *attr, void *(*function
  * give CPU possession to other user-level threads voluntarily
  */
 int mypthread_yield() {
+	stopTimer();
 	tcb *curr_running = runQ_head -> next;
 
 	// change thread state from Running to Ready
@@ -98,7 +102,7 @@ int mypthread_yield() {
 	save_running_context_to_tcb();
 
 	// switch from thread context to scheduler context
-	schedule();
+	schedule(NULL);
 	return 0;
 }
 
@@ -106,6 +110,7 @@ int mypthread_yield() {
  * terminate a thread
  */
 void mypthread_exit(void *value_ptr) {
+	stopTimer();
 	tcb *curr_running = runQ_head -> next;
 
 	// Deallocated any dynamic memory created when starting this thread (done in join)
@@ -118,7 +123,7 @@ void mypthread_exit(void *value_ptr) {
 
 	// save context of this thread to its thread control block
 	save_running_context_to_tcb();
-	schedule();
+	schedule(NULL);
 }
 
 
@@ -126,9 +131,10 @@ void mypthread_exit(void *value_ptr) {
  * Wait for thread termination
  */
 int mypthread_join(mypthread_t thread, void **value_ptr) {
-
+	stopTimer();
 	// look through the run queue to see if the tcb is there
 	tcb* join_target = find_tcb_by_id(runQ_head, runQ_tail, thread);
+	resumeTimer();
 
 	// found in run queue, so we can just yield current thread and wait for
 	// that thread to finish it's execution
@@ -139,7 +145,9 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 	}
 	// otherwise, look through the terminated queue to see if the tcb is there
 	else {
+		stopTimer();
 		tcb* join_target = find_tcb_by_id(termQ_head, termQ_tail, thread);
+		resumeTimer();
 	}
 
 	// not found in run queue or terminated queue so tcb doesn't exist
@@ -152,7 +160,10 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
 	}
 
 	// de-allocate any dynamic memory created by the joining thread
+	stopTimer();
 	remove_tcb(join_target, 1);
+	resumeTimer();
+
 	return 0;
 };
 
@@ -164,7 +175,13 @@ int mypthread_join(mypthread_t thread, void **value_ptr) {
  * initialize the mutex lock
  */
 int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
-	//initialize data structures for this mutex
+	stopTimer();
+
+	// Initialize mutex
+	mutex -> m_semaphore = 1;
+	init_queue(&(mutex -> m_head), &(mutex -> m_tail));
+
+	resumeTimer();
 	return 0;
 };
 
@@ -172,20 +189,48 @@ int mypthread_mutex_init(mypthread_mutex_t *mutex, const pthread_mutexattr_t *mu
  *  aquire the mutex lock
  */
 int mypthread_mutex_lock(mypthread_mutex_t *mutex) {
-        // use the built-in test-and-set atomic function to test the mutex
-        // if the mutex is acquired successfully, enter the critical section
-        // if acquiring mutex fails, push current thread into block list and //
-        // context switch to the scheduler thread
-        return 0;
+	stopTimer();
+
+	// use the built-in test-and-set atomic function to test the mutex
+	// return current m_semaphore value and write in a 0
+	if( !(__sync_lock_test_and_set( &(mutex -> m_semaphore), 0)) ) {
+
+		// if acquiring mutex fails, push current thread into semaphore blocked queue (done in scheduler)
+		tcb *currRunning = runQ_head -> next;
+		currRunning -> t_status = BLOCKED;
+
+		// context switch to the scheduler
+		schedule(mutex);
+	} else {
+		resumeTimer();
+	}
+
+	// if the mutex is acquired successfully, enter the critical section
+	return 0;
 };
 
 /*
  * release the mutex lock
  */
 int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
+	stopTimer();
+	tcb *curr;
+
+	// Put threads in block list to run queue if not empty
+	while (1) {
+		curr = dequeue_tcb(mutex -> m_head, mutex -> m_tail, 0);
+
+		if (curr) {
+			curr -> t_status = READY;
+			enqueue_tcb(runQ_head, runQ_tail, curr);
+		} else {
+			break;
+		}
+	}
+
 	// Release mutex and make it available again.
-	// Put threads in block list to run queue
-	// so that they could compete for mutex later.
+	mutex -> m_semaphore = 1;
+	resumeTimer();
 	return 0;
 };
 
@@ -193,7 +238,13 @@ int mypthread_mutex_unlock(mypthread_mutex_t *mutex) {
  * destroy the mutex
  */
 int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
-	// Deallocate dynamic memory created in mypthread_mutex_init
+	stopTimer();
+
+	// only free TCB since mutex allocated on stack
+	free_tcb(mutex -> m_head);
+	free_tcb(mutex -> m_tail);
+
+	resumeTimer();
 	return 0;
 };
 
@@ -204,7 +255,7 @@ int mypthread_mutex_destroy(mypthread_mutex_t *mutex) {
 /*
  * scheduler - invoked on timer interrupt or thread yields (decide what to run next)
  */
-static void schedule() {
+static void schedule(mypthread_mutex_t *mutex) {
 	stopTimer();
 	tcb *initialFirst = runQ_head -> next;
 
@@ -213,6 +264,11 @@ static void schedule() {
 
 	// after exit, remove terminated tcb from runqueue and put in terminated queue, if it exists
 	remove_terminated();
+
+	// after mutex lock, remove blocked tcb from runqueue and put it in mutex queue
+	if (mutex) {
+		remove_blocked(mutex);
+	}
 
 	// after the last thread calls exit, nothing left in run queue, so simply exit process
 	if (runQ_head -> next == runQ_tail) {
@@ -384,6 +440,19 @@ void remove_terminated() {
 }
 
 /*
+ * Removes any blocked process from run queue to mutex queue
+ */
+void remove_blocked(mypthread_mutex_t *mutex) {
+	tcb *currRunning = runQ_head -> next;
+
+	// if we just exited, remove from run queue and put at the end of the terminated queue
+	if (currRunning -> t_status == BLOCKED) {
+		dequeue_tcb(runQ_head, runQ_tail, 0);
+		enqueue_tcb(mutex -> m_head, mutex -> m_tail, currRunning);
+	}
+}
+
+/*
  * Find a thread control block by it's given thread id in given queue
  * Return a pointer to the block or NULL if not found
  */
@@ -479,33 +548,36 @@ void handleSigProf(int num) {
 
 	// save context of this thread to its thread control block
 	save_running_context_to_tcb();
-	schedule();
+	schedule(NULL);
 }
 
 /*
  * Timer decrements from it_value to 0, issues a SIGPROF signal, and resets to it_interval
  */
 void startTimer() {
-	struct itimerval timerValue;
-
 	timerValue.it_value.tv_sec = 0;
-	timerValue.it_value.tv_usec = 1;
+	timerValue.it_value.tv_usec = QUANTUM;
 	timerValue.it_interval.tv_sec = 0;
 	timerValue.it_interval.tv_usec = QUANTUM;
-	setitimer(ITIMER_PROF, &timerValue, NULL);
+	setitimer(ITIMER_PROF, &timerValue, &oldTimerValue);
 }
 
 /*
  * If both fields in new_value.it_value are zero, then the timer is disarmed.
  */
 void stopTimer() {
-	struct itimerval timerValue;
-
 	timerValue.it_value.tv_sec = 0;
 	timerValue.it_value.tv_usec = 0;
 	timerValue.it_interval.tv_sec = 0;
 	timerValue.it_interval.tv_usec = 0;
-	setitimer(ITIMER_PROF, &timerValue, NULL);
+	setitimer(ITIMER_PROF, &timerValue, &oldTimerValue);
+}
+
+/*
+ * Resume timer from wherever it stopped
+ */
+void resumeTimer() {
+	setitimer(ITIMER_PROF, &oldTimerValue, &oldTimerValue);
 }
 
 /********************************************************************************************************
@@ -516,7 +588,7 @@ void stopTimer() {
  * Print details of given thread block
  */
 void print_tcb(tcb* t_block) {
-	char* status[] = {"ready", "running", "waiting", "terminated"};
+	char* status[] = {"ready", "running", "blocked", "terminated"};
 
 	puts("\n--------------Thread control block-----------------");
 

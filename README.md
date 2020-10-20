@@ -48,22 +48,9 @@ make
 ./{executable}
 ```
 
-## TODO for Makefile
-
-1. Should add various targets in makefile like:
-```
-make create
-make join
-```
-
-2. Should just add the target of the base dir make into the Makefile in benchmarks/tests so we don't have to keep opening 2 shells and having to run Number 4 in testing
-
-
 ## TODO
 
-1. Since our signal can come between any two instructions, we want to essentially stop timer and start timer whenever we read/write any data to the queues. Seems to work fine without, but probably should do anyway
-
-2. Should we assign a stack to the first thread created by init_first_thread() method? Double check
+1. Check benchmarks
 
 
 ## Notes
